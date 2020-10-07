@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from rest_framework.validators import UniqueTogetherValidator
 
 from .models import Comment, Follow, Group, Post, User
 
@@ -23,7 +24,6 @@ class CommentSerializer(serializers.ModelSerializer):
     class Meta:
         fields = '__all__'
         model = Comment
-        extra_kwargs = {'post': {'required': False}}
 
 
 class GroupSerializer(serializers.ModelSerializer):
@@ -36,23 +36,21 @@ class GroupSerializer(serializers.ModelSerializer):
 
 class FollowSerializer(serializers.ModelSerializer):
     user = serializers.SlugRelatedField(
-        read_only=True,
         slug_field='username',
+        read_only=True,
+        default=serializers.CurrentUserDefault()
     )
-
-    following = serializers.CharField()
+    following = serializers.SlugRelatedField(
+        queryset=User.objects.all(),
+        slug_field='username'
+    )
 
     class Meta:
         fields = '__all__'
         model = Follow
-
-    def validate(self, data):
-        user = self.context['request'].user
-        following = User.objects.get(username=data.get('following'))
-        try:
-            Follow.objects.get(user=user, following=following)
-        except Follow.DoesNotExist:
-            pass
-        else:
-            raise serializers.ValidationError('Already followed')
-        return data
+        validators = [
+            UniqueTogetherValidator(
+                queryset=Follow.objects.all(),
+                fields=('user', 'following')
+            )
+        ]
